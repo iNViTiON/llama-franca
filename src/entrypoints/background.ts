@@ -45,6 +45,32 @@ async function syncMenu() {
   ]).catch(() => {});
 }
 
+type Action = "translate-page" | "translate-selection";
+
+/** Context menu items and keyboard shortcuts share the same two actions. Translating a translated page restores it. */
+async function invoke(action: Action, tab: Browser.tabs.Tab | undefined, selectionText = "") {
+  if (tab?.id === undefined) return;
+  const tabId = tab.id;
+  if (action === "translate-page" && (await getMode(tabId))) {
+    const restore: PageMessage = { type: "restore-page" };
+    // Without a content script (the extension was reloaded) only the stale mode is left to clear.
+    await browser.tabs
+      .sendMessage(tabId, restore)
+      .catch(() => browser.storage.session.remove(modeKey(tabId)));
+    return;
+  }
+  const [source, target] = await Promise.all([sourcePref.getValue(), getTarget()]);
+  // The content script reads the page's own selection when a shortcut gives no text.
+  const message: PageMessage =
+    action === "translate-page"
+      ? { type: "translate-page", source, target }
+      : { type: "translate-selection", text: selectionText, source, target };
+  // Fails on pages extensions can't script, like browser pages.
+  ensureContentScript(tabId)
+    .then(() => browser.tabs.sendMessage(tabId, message))
+    .catch(() => {});
+}
+
 /** Returns true to keep the message channel open until it answers. */
 function reply<T>(result: Promise<T>, sendResponse: (response: Reply<T>) => void) {
   result.then(sendResponse, (error: Error) => sendResponse({ error: error.message }));
@@ -125,25 +151,14 @@ export default defineBackground(() => {
     });
     void syncMenu();
   });
-  browser.contextMenus.onClicked.addListener(async (info, tab) => {
-    if (tab?.id === undefined) return;
-    if (info.menuItemId === "translate-page" && (await getMode(tab.id))) {
-      const restore: PageMessage = { type: "restore-page" };
-      // Without a content script (the extension was reloaded) only the stale mode is left to clear.
-      await browser.tabs
-        .sendMessage(tab.id, restore)
-        .catch(() => browser.storage.session.remove(modeKey(tab.id!)));
-      return;
-    }
-    const [source, target] = await Promise.all([sourcePref.getValue(), getTarget()]);
-    const message: PageMessage =
-      info.menuItemId === "translate-page"
-        ? { type: "translate-page", source, target }
-        : { type: "translate-selection", text: info.selectionText ?? "", source, target };
-    // Fails on pages extensions can't script, like browser pages.
-    ensureContentScript(tab.id)
-      .then(() => browser.tabs.sendMessage(tab.id!, message))
-      .catch(() => {});
+  browser.contextMenus.onClicked.addListener((info, tab) =>
+    invoke(info.menuItemId as Action, tab, info.selectionText),
+  );
+  // Fork: keyboard shortcuts (set in the browser's extension shortcut settings, defaults in wxt.config.ts).
+  browser.commands.onCommand.addListener(async (command, tab) => {
+    if (command !== "translate-page" && command !== "translate-selection") return;
+    tab ??= (await browser.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+    await invoke(command, tab);
   });
 
   browser.tabs.onUpdated.addListener(async (tabId, info) => {
