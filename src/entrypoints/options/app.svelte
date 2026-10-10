@@ -3,11 +3,13 @@
   import { cacheUsage, clearCache, evict } from "@/lib/cache";
   import Field from "@/lib/components/field.svelte";
   import { DEFAULT_LANGUAGES, displayName, languagesPref, type Language } from "@/lib/languages";
+  import LanguageOptions from "@/lib/components/language-options.svelte";
   import { listModels } from "@/lib/ollama";
   import {
     cacheLimitPref,
     DEFAULT_MODEL,
     DEFAULT_PROMPT,
+    fallbackSourcePref,
     MAX_CACHE_MB,
     modelPickerPref,
     modelPref,
@@ -50,6 +52,8 @@
   let validPrompt = $derived(prompt.includes("{text}"));
 
   modelPref.getValue().then((value) => (model = value));
+  let fallbackSource = $state("");
+  fallbackSourcePref.getValue().then((value) => (fallbackSource = value));
   let picker = $state(false);
   modelPickerPref.getValue().then((value) => (picker = value));
   promptPref.getValue().then((value) => (prompt = value));
@@ -120,9 +124,11 @@
       cacheLimitPref.removeValue(),
       modelPickerPref.removeValue(),
       selectionModelPref.removeValue(),
+      fallbackSourcePref.removeValue(),
       resetLanguages(),
     ]);
     picker = false;
+    fallbackSource = "";
     model = DEFAULT_MODEL;
     prompt = DEFAULT_PROMPT;
     cacheLimit = MAX_CACHE_MB;
@@ -147,6 +153,20 @@
       >, which the default prompt is written for. Other models may need a different prompt, drop
       links and formatting, or translate slower when blocks are batched.
     {/snippet}
+  </Field>
+
+  <Field
+    label="Fallback source language"
+    hint="Used when Auto can't detect the language of a page or selection, instead of asking you to pick one. Pages already in the target language are still left alone."
+  >
+    <select
+      class="control"
+      bind:value={fallbackSource}
+      onchange={() => fallbackSourcePref.setValue(fallbackSource)}
+    >
+      <option value="">None, ask me</option>
+      <LanguageOptions />
+    </select>
   </Field>
 
   <Field

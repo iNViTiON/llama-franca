@@ -12,6 +12,11 @@ export async function getTarget() {
   );
 }
 
+/** Fork: source language to assume when "Auto" can't detect one (short or mixed pages). "" asks instead. */
+export const fallbackSourcePref = storage.defineItem<string>("local:fallbackSource", {
+  fallback: "",
+});
+
 export const DEFAULT_MODEL = "translategemma:4b";
 
 // Exact template from https://ollama.com/library/translategemma.

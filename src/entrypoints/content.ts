@@ -10,6 +10,7 @@ import type {
 } from "@/lib/messages";
 import { showPopover } from "@/lib/popover";
 import {
+  fallbackSourcePref,
   modelFor,
   modelPickerPref,
   modelPref,
@@ -140,7 +141,8 @@ async function translateSelection(
         sourceCode === "auto"
           ? ((await detect(text)) ??
             session?.source ??
-            (await pageLanguage(document.body.innerText)))
+            (await pageLanguage(document.body.innerText)) ??
+            (await fallbackSource()))
           : await findLanguage(sourceCode);
 
       if (!source) throw new Error("Couldn't detect the language, pick a source language");
@@ -238,7 +240,8 @@ async function start(sourceCode: string, targetCode: string) {
 
   const source =
     sourceCode === "auto"
-      ? await pageLanguage(segments.map((s) => plainText(s.source)).join("\n"))
+      ? ((await pageLanguage(segments.map((s) => plainText(s.source)).join("\n"))) ??
+        (await fallbackSource()))
       : await findLanguage(sourceCode);
   if (!source) throw new Error("Couldn't detect the page language, pick a source language");
   if (source.code === target.code) throw new Error(`Page is already in ${displayName(target)}`);
@@ -338,6 +341,11 @@ async function detect(text: string) {
   return top && (result.isReliable || top.percentage >= 50)
     ? findLanguage(top.language)
     : undefined;
+}
+
+/** Fork: the language set in settings for when detection fails. */
+async function fallbackSource() {
+  return findLanguage((await fallbackSourcePref.getValue()) || undefined);
 }
 
 async function pageLanguage(text: string) {
