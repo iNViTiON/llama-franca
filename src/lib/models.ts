@@ -7,7 +7,7 @@ export const DEVICES = ["NPU", "GPU", "CPU"] as const;
 
 export interface ModelChoice {
   model: string;
-  /** Empty for "any device", the plain name. */
+  /** Empty for the plain name: the server picks the device (its default). */
   device: string;
 }
 

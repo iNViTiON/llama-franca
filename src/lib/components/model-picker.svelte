@@ -49,7 +49,7 @@
     value={choice.device}
     onchange={(e) => pick(choice.model, e.currentTarget.value)}
   >
-    <option value="">Any device</option>
+    <option value="">Default device</option>
     {#each devices as device (device)}
       <option value={device}>{device}</option>
     {/each}
