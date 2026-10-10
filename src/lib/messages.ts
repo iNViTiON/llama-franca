@@ -1,4 +1,5 @@
 import type { Language } from "./languages";
+import type { Purpose } from "./prefs";
 
 export const LOADING_MODEL = "Loading model, the first translation takes a while…";
 
@@ -10,13 +11,24 @@ export interface TranslateTextMessage {
   source: Language;
   target: Language;
   text: string;
+  purpose?: Purpose;
 }
 export interface TranslateTextResult {
   text: string;
 }
 
 /** Content script → background: Ollama loads the model on first use (and after it idles out), which takes a while. */
-export type ModelMessage = { type: "model-loaded" } | { type: "load-model" };
+export type ModelMessage =
+  | { type: "model-loaded"; purpose?: Purpose }
+  | { type: "load-model"; purpose?: Purpose };
+
+/** Fork: content script → background, for the selection box's model picker (only the background can reach the server). */
+export interface ListModelsMessage {
+  type: "list-models";
+}
+export interface ListModelsResult {
+  models: string[];
+}
 export interface ModelResult {
   loaded: boolean;
 }

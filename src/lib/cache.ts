@@ -1,5 +1,5 @@
 import type { Language } from "./languages";
-import { cacheLimitPref, modelPref, promptPref } from "./prefs";
+import { cacheLimitPref, modelFor, promptPref, type Purpose } from "./prefs";
 
 const PREFIX = "tr:";
 const CHECK_EVERY = 50;
@@ -14,8 +14,8 @@ let writes = 0;
 export const cacheKey = (source: Language, target: Language, text: string) =>
   `${source.code}>${target.code}\n${text}`;
 
-async function storageKey(source: Language, target: Language, text: string) {
-  const [model, prompt] = await Promise.all([modelPref.getValue(), promptPref.getValue()]);
+async function storageKey(source: Language, target: Language, text: string, purpose?: Purpose) {
+  const [model, prompt] = await Promise.all([modelFor(purpose), promptPref.getValue()]);
   const data = new TextEncoder().encode(`${model}\n${prompt}\n${cacheKey(source, target, text)}`);
   // In a Firefox content script the hash belongs to the page, so methods like `slice` that read `constructor` are denied.
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
@@ -24,9 +24,14 @@ async function storageKey(source: Language, target: Language, text: string) {
   );
 }
 
-export async function getStored(source: Language, target: Language, text: string) {
+export async function getStored(
+  source: Language,
+  target: Language,
+  text: string,
+  purpose?: Purpose,
+) {
   if (!(await cacheLimitPref.getValue())) return;
-  const key = await storageKey(source, target, text);
+  const key = await storageKey(source, target, text, purpose);
   const entry = (await browser.storage.local.get(key))[key] as Entry | undefined;
   return entry?.text;
 }
@@ -36,9 +41,10 @@ export async function putStored(
   target: Language,
   text: string,
   translation: string,
+  purpose?: Purpose,
 ) {
   if (!(await cacheLimitPref.getValue())) return;
-  const key = await storageKey(source, target, text);
+  const key = await storageKey(source, target, text, purpose);
   await browser.storage.local.set({ [key]: { text: translation, at: Date.now() } satisfies Entry });
   if (++writes % CHECK_EVERY === 0) await evict();
 }

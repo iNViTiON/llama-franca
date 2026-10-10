@@ -1,5 +1,6 @@
 <script lang="ts">
   import LanguageOptions from "./language-options.svelte";
+  import ModelPicker from "./model-picker.svelte";
   import { LOADING_MODEL } from "../messages";
 
   let {
@@ -7,11 +8,18 @@
     target = $bindable(),
     onchange,
     onclose,
+    models,
+    model = $bindable(),
+    onmodel,
   }: {
     source: string;
     target: string;
     onchange: (source: string, target: string) => void;
     onclose: () => void;
+    /** Fork: the selection's own model picker, when enabled in settings. */
+    models?: string[];
+    model?: string;
+    onmodel?: (model: string) => void;
   } = $props();
 
   let text = $state("Translating…");
@@ -56,6 +64,18 @@
     </select>
     <button class="close" aria-label="Close" onclick={onclose}>×</button>
   </div>
+  {#if models && model !== undefined && onmodel}
+    <div class="header">
+      <ModelPicker
+        {models}
+        value={model}
+        onchange={(value) => {
+          model = value;
+          onmodel(value);
+        }}
+      />
+    </div>
+  {/if}
   <div
     class="body"
     class:pending={status === "pending"}

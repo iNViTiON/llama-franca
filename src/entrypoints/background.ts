@@ -1,6 +1,8 @@
 import { ensureContentScript } from "@/lib/content-script";
 import type {
   BadgeMessage,
+  ListModelsMessage,
+  ListModelsResult,
   ModelMessage,
   ModelResult,
   PageMessage,
@@ -10,7 +12,7 @@ import type {
   TranslateTextMessage,
   TranslateTextResult,
 } from "@/lib/messages";
-import { isModelLoaded, loadModel, translate } from "@/lib/ollama";
+import { isModelLoaded, listModels, loadModel, translate } from "@/lib/ollama";
 import { displayName, findLanguage, languagesPref } from "@/lib/languages";
 import { getTarget, sourcePref, targetPref } from "@/lib/prefs";
 
@@ -53,7 +55,12 @@ function reply<T>(result: Promise<T>, sendResponse: (response: Reply<T>) => void
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener(
     (
-      message: TranslateTextMessage | BadgeMessage | TabModeMessage | ModelMessage,
+      message:
+        | TranslateTextMessage
+        | BadgeMessage
+        | TabModeMessage
+        | ModelMessage
+        | ListModelsMessage,
       sender,
       sendResponse,
     ) => {
@@ -79,17 +86,26 @@ export default defineBackground(() => {
           return;
         case "model-loaded":
           return reply<ModelResult>(
-            isModelLoaded().then((loaded) => ({ loaded })),
+            isModelLoaded(message.purpose).then((loaded) => ({ loaded })),
             sendResponse,
           );
         case "load-model":
           return reply<ModelResult>(
-            loadModel().then(() => ({ loaded: true })),
+            loadModel(message.purpose).then(() => ({ loaded: true })),
             sendResponse,
           );
         case "translate-text":
           return reply<TranslateTextResult>(
-            translate(message.source, message.target, message.text).then((text) => ({ text })),
+            translate(message.source, message.target, message.text, message.purpose).then(
+              (text) => ({
+                text,
+              }),
+            ),
+            sendResponse,
+          );
+        case "list-models":
+          return reply<ListModelsResult>(
+            listModels().then((models) => ({ models })),
             sendResponse,
           );
       }

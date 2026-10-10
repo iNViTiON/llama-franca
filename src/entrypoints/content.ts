@@ -1,13 +1,23 @@
 import { displayName, findLanguage, type Language } from "@/lib/languages";
 import type {
   BadgeMessage,
+  ListModelsMessage,
+  ListModelsResult,
   PageMessage,
   PageStatus,
   TabMode,
   TabModeMessage,
 } from "@/lib/messages";
 import { showPopover } from "@/lib/popover";
-import { modelPref, promptPref, sourcePref, targetPref } from "@/lib/prefs";
+import {
+  modelFor,
+  modelPickerPref,
+  modelPref,
+  promptPref,
+  selectionModelPref,
+  sourcePref,
+  targetPref,
+} from "@/lib/prefs";
 import type { ContentScriptContext } from "wxt/utils/content-script-context";
 import { buildNodes, collectSegments, plainText, swap, type Segment } from "@/lib/segments";
 import {
@@ -69,6 +79,8 @@ export default defineContentScript({
     document.adoptedStyleSheets = [...document.adoptedStyleSheets, pendingSheet];
     modelPref.watch(clearTranslations);
     promptPref.watch(clearTranslations);
+    selectionModelPref.watch(clearTranslations);
+    modelPickerPref.watch(clearTranslations);
     // SPA navigation keeps this script alive: keep translating (new content arrives as mutations) but
     // restart the count and forget the old page's blocks. Hash jumps stay on the same page.
     ctx.addEventListener(window, "wxt:locationchange", ({ newUrl, oldUrl }) => {
@@ -134,7 +146,9 @@ async function translateSelection(
       if (!source) throw new Error("Couldn't detect the language, pick a source language");
 
       const translation =
-        source.code === target.code ? text : await requestTranslation(source, target, text);
+        source.code === target.code
+          ? text
+          : await requestTranslation(source, target, text, "selection");
 
       if (id === latest) popover.show(translation, source.code);
     } catch (error) {
@@ -144,16 +158,39 @@ async function translateSelection(
     }
   };
 
+  let languages = [initialSource, initialTarget] as const;
   const popover = await showPopover(ctx, anchor, {
     source: initialSource,
     target: initialTarget,
     onchange: (source, target) => {
+      languages = [source, target];
       void sourcePref.setValue(source);
       void targetPref.setValue(target);
       void run(source, target);
     },
+    ...(await selectionModelPicker(async (model) => {
+      await selectionModelPref.setValue(model);
+      clearTranslations();
+      void run(...languages);
+    })),
   });
   await run(initialSource, initialTarget);
+}
+
+/** Fork: the selection box's own model picker, when enabled in settings. */
+async function selectionModelPicker(onmodel: (model: string) => void) {
+  if (!(await modelPickerPref.getValue())) return {};
+  const message: ListModelsMessage = { type: "list-models" };
+  const [res, model] = await Promise.all([
+    browser.runtime
+      .sendMessage(message)
+      .then((reply: ListModelsResult | { error: string }) =>
+        "models" in reply ? reply.models : [],
+      )
+      .catch((): string[] => []),
+    modelFor("selection"),
+  ]);
+  return { models: res, model, onmodel };
 }
 
 async function findTarget(code: string) {

@@ -1,5 +1,6 @@
 import type { Language } from "./languages";
-import { modelPref, promptPref } from "./prefs";
+import type { Purpose } from "./prefs";
+import { modelFor, modelPref, promptPref } from "./prefs";
 
 const OLLAMA_URL = "http://localhost:11434";
 
@@ -45,17 +46,17 @@ export async function listModels() {
   return models.map((m) => m.name).sort();
 }
 
-export async function isModelLoaded() {
+export async function isModelLoaded(purpose?: Purpose) {
   const [model, { models = [] }] = await Promise.all([
-    modelPref.getValue(),
+    modelFor(purpose),
     request<Models>("/api/ps"),
   ]);
   return models.some((m) => m.name === model);
 }
 
 /** A generate request without a prompt only loads the model into memory. */
-export async function loadModel() {
-  const model = await modelPref.getValue();
+export async function loadModel(purpose?: Purpose) {
+  const model = await modelFor(purpose);
   await request("/api/generate", { method: "POST", body: JSON.stringify({ model }) }, model);
 }
 
@@ -68,8 +69,13 @@ export async function checkSetup() {
   }
 }
 
-export async function translate(source: Language, target: Language, text: string) {
-  const [model, template] = await Promise.all([modelPref.getValue(), promptPref.getValue()]);
+export async function translate(
+  source: Language,
+  target: Language,
+  text: string,
+  purpose?: Purpose,
+) {
+  const [model, template] = await Promise.all([modelFor(purpose), promptPref.getValue()]);
   const body = await request<{ message?: { content: string } }>(
     "/api/chat",
     {

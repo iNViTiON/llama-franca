@@ -28,4 +28,26 @@ export const cacheLimitPref = storage.defineItem<number>("local:cacheLimit", {
 });
 
 export const modelPref = storage.defineItem<string>("local:model", { fallback: DEFAULT_MODEL });
+
+/**
+ * Fork: model (and device) pickers in the popup and the selection box. While on, selections use their own model,
+ * e.g. short selections on the NPU while pages use the GPU. Off (the default) everything uses `model`, as upstream.
+ */
+export const modelPickerPref = storage.defineItem<boolean>("local:modelPicker", {
+  fallback: false,
+});
+export const selectionModelPref = storage.defineItem<string | null>("local:selectionModel", {
+  fallback: null,
+});
+
+export type Purpose = "page" | "selection";
+
+export async function modelFor(purpose: Purpose = "page") {
+  const [model, picker, selection] = await Promise.all([
+    modelPref.getValue(),
+    modelPickerPref.getValue(),
+    selectionModelPref.getValue(),
+  ]);
+  return purpose === "selection" && picker && selection ? selection : model;
+}
 export const promptPref = storage.defineItem<string>("local:prompt", { fallback: DEFAULT_PROMPT });

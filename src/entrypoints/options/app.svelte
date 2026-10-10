@@ -9,8 +9,10 @@
     DEFAULT_MODEL,
     DEFAULT_PROMPT,
     MAX_CACHE_MB,
+    modelPickerPref,
     modelPref,
     promptPref,
+    selectionModelPref,
     sourcePref,
     targetPref,
   } from "@/lib/prefs";
@@ -48,6 +50,8 @@
   let validPrompt = $derived(prompt.includes("{text}"));
 
   modelPref.getValue().then((value) => (model = value));
+  let picker = $state(false);
+  modelPickerPref.getValue().then((value) => (picker = value));
   promptPref.getValue().then((value) => (prompt = value));
   listModels().then(
     (names) => (models = names),
@@ -114,8 +118,11 @@
       modelPref.removeValue(),
       promptPref.removeValue(),
       cacheLimitPref.removeValue(),
+      modelPickerPref.removeValue(),
+      selectionModelPref.removeValue(),
       resetLanguages(),
     ]);
+    picker = false;
     model = DEFAULT_MODEL;
     prompt = DEFAULT_PROMPT;
     cacheLimit = MAX_CACHE_MB;
@@ -140,6 +147,18 @@
       >, which the default prompt is written for. Other models may need a different prompt, drop
       links and formatting, or translate slower when blocks are batched.
     {/snippet}
+  </Field>
+
+  <Field
+    label="Model and device picker"
+    inline
+    hint="Shows model (and device) choices in the popup, for page translation, and in the selection box, which then keeps its own model: e.g. short selections on the NPU while pages use the GPU. Devices appear when the server lists them, like local-llm-npu-translator started with --device NPU,GPU."
+  >
+    <input
+      type="checkbox"
+      bind:checked={picker}
+      onchange={() => modelPickerPref.setValue(picker)}
+    />
   </Field>
 
   <Field

@@ -1,10 +1,11 @@
 <script lang="ts">
   import Button from "@/lib/components/button.svelte";
   import LanguageOptions from "@/lib/components/language-options.svelte";
+  import ModelPicker from "@/lib/components/model-picker.svelte";
   import { ensureContentScript } from "@/lib/content-script";
   import { LOADING_MODEL, type PageMessage, type PageStatus } from "@/lib/messages";
-  import { checkSetup } from "@/lib/ollama";
-  import { getTarget, sourcePref, targetPref } from "@/lib/prefs";
+  import { checkSetup, listModels } from "@/lib/ollama";
+  import { getTarget, modelPickerPref, modelPref, sourcePref, targetPref } from "@/lib/prefs";
 
   let source = $state("auto");
   let target = $state("en");
@@ -12,8 +13,10 @@
   let actionError = $state<string>();
   let setupError = $state<string>();
   let error = $derived(actionError ?? setupError ?? status?.error);
+  let modelChanged = $state(false);
   let canTranslate = $derived(
-    !status ||
+    modelChanged ||
+      !status ||
       status.state === "idle" ||
       status.requestedSource !== source ||
       status.target !== target,
@@ -22,6 +25,22 @@
   sourcePref.getValue().then((value) => (source = value));
   getTarget().then((value) => (target = value));
   checkSetup().then((message) => (setupError = message));
+
+  // Fork: page translation's model (and device), when enabled in settings.
+  let models = $state<string[]>();
+  let model = $state("");
+  modelPickerPref.getValue().then(async (on) => {
+    if (!on) return;
+    model = await modelPref.getValue();
+    models = await listModels().catch(() => []);
+  });
+
+  async function setModel(value: string) {
+    model = value;
+    modelChanged = status?.state !== undefined && status.state !== "idle";
+    await modelPref.setValue(value);
+    setupError = await checkSetup();
+  }
 
   async function send(message: PageMessage) {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
@@ -35,6 +54,7 @@
 
   async function run(message: PageMessage) {
     actionError = undefined;
+    modelChanged = false;
     try {
       status = await send(message);
       actionError = status.error;
@@ -70,6 +90,12 @@
       <LanguageOptions />
     </select>
   </div>
+
+  {#if models}
+    <div class="flex items-center gap-2">
+      <ModelPicker {models} value={model} onchange={setModel} class="min-w-0 flex-1" />
+    </div>
+  {/if}
 
   <div class="flex gap-2">
     {#if canTranslate}

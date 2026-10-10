@@ -1,5 +1,6 @@
 import { cacheKey, getStored, putStored } from "./cache";
 import type { Language } from "./languages";
+import type { Purpose } from "./prefs";
 import type {
   ModelMessage,
   ModelResult,
@@ -9,7 +10,8 @@ import type {
 } from "./messages";
 
 const translations = new Map<string, Promise<string>>();
-let modelReady: Promise<void> | undefined;
+/** Per purpose: page and selection translations may use different models (fork). */
+const modelReady = new Map<Purpose, Promise<void>>();
 let loadingModel = false;
 let onLoadingModel: (() => void) | undefined;
 
@@ -32,17 +34,21 @@ async function ask<T extends object>(message: TranslateTextMessage | ModelMessag
   return res;
 }
 
-function ensureModel() {
-  modelReady ??= (async () => {
-    if ((await ask<ModelResult>({ type: "model-loaded" })).loaded) return;
-    setLoadingModel(true);
-    try {
-      await ask<ModelResult>({ type: "load-model" });
-    } finally {
-      setLoadingModel(false);
-    }
-  })().finally(() => (modelReady = undefined));
-  return modelReady;
+function ensureModel(purpose: Purpose) {
+  let ready = modelReady.get(purpose);
+  if (!ready) {
+    ready = (async () => {
+      if ((await ask<ModelResult>({ type: "model-loaded", purpose })).loaded) return;
+      setLoadingModel(true);
+      try {
+        await ask<ModelResult>({ type: "load-model", purpose });
+      } finally {
+        setLoadingModel(false);
+      }
+    })().finally(() => modelReady.delete(purpose));
+    modelReady.set(purpose, ready);
+  }
+  return ready;
 }
 
 function setLoadingModel(on: boolean) {
@@ -50,20 +56,34 @@ function setLoadingModel(on: boolean) {
   onLoadingModel?.();
 }
 
-async function sendTranslation(source: Language, target: Language, text: string) {
-  await ensureModel();
-  const res = await ask<TranslateTextResult>({ type: "translate-text", source, target, text });
+async function sendTranslation(source: Language, target: Language, text: string, purpose: Purpose) {
+  await ensureModel(purpose);
+  const res = await ask<TranslateTextResult>({
+    type: "translate-text",
+    source,
+    target,
+    text,
+    purpose,
+  });
   return res.text;
 }
 
-export function requestTranslation(source: Language, target: Language, text: string) {
-  const key = cacheKey(source, target, text);
+const memoKey = (purpose: Purpose, source: Language, target: Language, text: string) =>
+  `${purpose}\n${cacheKey(source, target, text)}`;
+
+export function requestTranslation(
+  source: Language,
+  target: Language,
+  text: string,
+  purpose: Purpose = "page",
+) {
+  const key = memoKey(purpose, source, target, text);
   let result = translations.get(key);
   if (!result) {
-    result = getStored(source, target, text).then(async (stored) => {
+    result = getStored(source, target, text, purpose).then(async (stored) => {
       if (stored !== undefined) return stored;
-      const translation = await sendTranslation(source, target, text);
-      void putStored(source, target, text, translation);
+      const translation = await sendTranslation(source, target, text, purpose);
+      void putStored(source, target, text, translation, purpose);
       return translation;
     });
     result.catch(() => translations.delete(key));
@@ -72,25 +92,29 @@ export function requestTranslation(source: Language, target: Language, text: str
   return result;
 }
 
-/** Translate uncached lines in one request and seed the cache; on a line-count mismatch each falls back to its own request. */
+/**
+ * Translate uncached lines in one request and seed the cache; on a line-count mismatch each falls back to its own request.
+ * Page translation only.
+ */
 export async function prefetchLines(source: Language, target: Language, texts: string[]) {
   const unseen = [
-    ...new Set(texts.filter((text) => !translations.has(cacheKey(source, target, text)))),
+    ...new Set(texts.filter((text) => !translations.has(memoKey("page", source, target, text)))),
   ];
   const stored = await Promise.all(unseen.map((text) => getStored(source, target, text)));
   const missing = unseen.filter((text, i) => {
     const hit = stored[i];
-    if (hit !== undefined) translations.set(cacheKey(source, target, text), Promise.resolve(hit));
+    if (hit !== undefined)
+      translations.set(memoKey("page", source, target, text), Promise.resolve(hit));
     return hit === undefined;
   });
   if (missing.length < 2) return;
-  const lines = (await sendTranslation(source, target, missing.join("\n")))
+  const lines = (await sendTranslation(source, target, missing.join("\n"), "page"))
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
   if (lines.length !== missing.length) return;
   missing.forEach((text, i) => {
-    translations.set(cacheKey(source, target, text), Promise.resolve(lines[i]!));
+    translations.set(memoKey("page", source, target, text), Promise.resolve(lines[i]!));
     void putStored(source, target, text, lines[i]!);
   });
 }

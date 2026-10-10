@@ -11,6 +11,9 @@ interface Options {
   source: string;
   target: string;
   onchange: (source: string, target: string) => void;
+  models?: string[];
+  model?: string;
+  onmodel?: (model: string) => void;
 }
 
 /** Floating translation box under the selection, rendered in a shadow root so page CSS stays out. */
