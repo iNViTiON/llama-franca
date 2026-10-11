@@ -9,6 +9,7 @@ import type {
   TabModeMessage,
 } from "@/lib/messages";
 import { showPopover } from "@/lib/popover";
+import { rankByScreen, type Place } from "@/lib/queue";
 import {
   fallbackSourcePref,
   modelFor,
@@ -370,7 +371,21 @@ function takeBatch(queue: Segment[]) {
   return batch;
 }
 
+/** Fork: where a queued block is on screen now; undefined once it left the page. */
+function placeOf(segment: Segment): Place | undefined {
+  const first = segment.original[0];
+  const last = segment.original.at(-1);
+  if (!first?.isConnected || !last?.isConnected) return;
+  const range = new Range();
+  range.setStartBefore(first);
+  range.setEndAfter(last);
+  const { top, bottom } = range.getBoundingClientRect();
+  return { top, bottom, main: !!segment.parent.closest(MAIN_CONTENT) };
+}
+
 function pump(s: Session) {
+  // Fork: the next requests go to what is on screen now, not to what scrolled into view first.
+  if (s.inFlight < CONCURRENCY && s.queue.length > 1) rankByScreen(s.queue, placeOf, innerHeight);
   while (session === s && !s.error && s.inFlight < CONCURRENCY && s.queue.length) {
     const batch = takeBatch(s.queue);
     s.inFlight += batch.length;
