@@ -25,7 +25,7 @@
   let text = $state("Translating…");
   let status = $state<"pending" | "done" | "error">("pending");
   let detected = $state<string>();
-  let speed = $state<number>();
+  let speed = $state<number | "cached">();
 
   export function pending(loadingModel = false) {
     text = loadingModel ? LOADING_MODEL : "Translating…";
@@ -33,8 +33,8 @@
     speed = undefined;
   }
 
-  /** `tokensPerSecond` is unset for cached translations and servers that don't report speed. */
-  export function show(value: string, detectedCode?: string, tokensPerSecond?: number) {
+  /** `tokensPerSecond` is "cached" for saved translations, unset when the server doesn't report speed. */
+  export function show(value: string, detectedCode?: string, tokensPerSecond?: number | "cached") {
     text = value;
     detected = detectedCode;
     speed = tokensPerSecond;
@@ -89,8 +89,13 @@
     {text}
   </div>
   {#if status === "done" && speed}
-    <div class="speed" title="Generation speed reported by the server">
-      {speed.toFixed(1)} tok/s
+    <div
+      class="speed"
+      title={speed === "cached"
+        ? "Saved translation, nothing was generated"
+        : "Generation speed reported by the server"}
+    >
+      {speed === "cached" ? "cached" : `${speed.toFixed(1)} tok/s`}
     </div>
   {/if}
 </div>

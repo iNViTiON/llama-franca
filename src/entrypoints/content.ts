@@ -28,7 +28,7 @@ import {
   prefetchLines,
   requestTranslation,
   resetPageSpeed,
-  selectionTokensPerSecond,
+  selectionSpeed,
   watchLoadingModel,
 } from "@/lib/translator";
 
@@ -156,7 +156,7 @@ async function translateSelection(
           : await requestTranslation(source, target, text, "selection");
 
       if (id === latest)
-        popover.show(translation, source.code, selectionTokensPerSecond(source, target, text));
+        popover.show(translation, source.code, selectionSpeed(source, target, text));
     } catch (error) {
       if (id === latest) popover.fail((error as Error).message);
     } finally {

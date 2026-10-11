@@ -32,7 +32,7 @@ export const clearTranslations = () => {
 };
 
 /** Generation speed the server reported: per selection translation, and a running total for the page. */
-const selectionSpeeds = new Map<string, number>();
+const selectionSpeeds = new Map<string, number | "cached">();
 const pageSpeed = { tokens: 0, seconds: 0 };
 
 export const resetPageSpeed = () => {
@@ -40,8 +40,8 @@ export const resetPageSpeed = () => {
 };
 export const pageTokensPerSecond = () =>
   pageSpeed.seconds ? pageSpeed.tokens / pageSpeed.seconds : undefined;
-/** Undefined when the translation came from the cache, or the server doesn't report speed. */
-export const selectionTokensPerSecond = (source: Language, target: Language, text: string) =>
+/** Tokens per second, "cached" when the saved cache answered, undefined when the server doesn't report speed. */
+export const selectionSpeed = (source: Language, target: Language, text: string) =>
   selectionSpeeds.get(memoKey("selection", source, target, text));
 
 function recordSpeed(purpose: Purpose, key: string, res: TranslateTextResult) {
@@ -107,7 +107,10 @@ export function requestTranslation(
   let result = translations.get(key);
   if (!result) {
     result = getStored(source, target, text, purpose).then(async (stored) => {
-      if (stored !== undefined) return stored;
+      if (stored !== undefined) {
+        if (purpose === "selection") selectionSpeeds.set(key, "cached");
+        return stored;
+      }
       const translation = await sendTranslation(source, target, text, purpose);
       void putStored(source, target, text, translation, purpose);
       return translation;
