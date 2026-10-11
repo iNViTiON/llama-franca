@@ -33,13 +33,15 @@ export const clearTranslations = () => {
 
 /** Generation speed the server reported: per selection translation, and a running total for the page. */
 const selectionSpeeds = new Map<string, number | "cached">();
-const pageSpeed = { tokens: 0, seconds: 0 };
+const pageSpeed = { tokens: 0, seconds: 0, requests: 0 };
 
 export const resetPageSpeed = () => {
-  pageSpeed.tokens = pageSpeed.seconds = 0;
+  pageSpeed.tokens = pageSpeed.seconds = pageSpeed.requests = 0;
 };
 export const pageTokensPerSecond = () =>
   pageSpeed.seconds ? pageSpeed.tokens / pageSpeed.seconds : undefined;
+/** False while every page block so far came from saved or in-page translations: nothing generated, no speed. */
+export const pageGenerated = () => pageSpeed.requests > 0;
 /** Tokens per second, "cached" when the saved cache answered, undefined when the server doesn't report speed. */
 export const selectionSpeed = (source: Language, target: Language, text: string) =>
   selectionSpeeds.get(memoKey("selection", source, target, text));
@@ -82,6 +84,7 @@ function setLoadingModel(on: boolean) {
 }
 
 async function sendTranslation(source: Language, target: Language, text: string, purpose: Purpose) {
+  if (purpose === "page") pageSpeed.requests++;
   await ensureModel(purpose);
   const res = await ask<TranslateTextResult>({
     type: "translate-text",

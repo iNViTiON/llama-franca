@@ -2,6 +2,7 @@ import { expect, test, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
 import {
   clearTranslations,
+  pageGenerated,
   pageTokensPerSecond,
   requestTranslation,
   resetPageSpeed,
@@ -69,4 +70,26 @@ test("a saved translation is marked cached instead of showing a speed", async ()
   expect(await requestTranslation(et, en, "Tere", "selection")).toBe("Hello");
   expect(selectionSpeed(et, en, "Tere")).toBe("cached");
   expect(calls.some((c) => c.type === "translate-text")).toBe(false);
+});
+
+test("a page translated only from saved translations reports nothing generated, so it can say cached", async () => {
+  fakeBrowser.reset();
+  clearTranslations();
+  resetPageSpeed();
+  const calls = background({ text: "Hello", tokens: 40, seconds: 2 });
+  await requestTranslation(et, en, "Tere");
+  expect(pageGenerated()).toBe(true);
+  await vi.waitFor(async () => {
+    const saved = await fakeBrowser.storage.local.get(null);
+    expect(Object.keys(saved).some((key) => key.startsWith("tr:"))).toBe(true);
+  });
+  // Translating the same page again: the in-page copy and the saved cache answer, no request is sent.
+  resetPageSpeed();
+  calls.length = 0;
+  expect(await requestTranslation(et, en, "Tere")).toBe("Hello");
+  clearTranslations();
+  expect(await requestTranslation(et, en, "Tere")).toBe("Hello");
+  expect(calls.some((c) => c.type === "translate-text")).toBe(false);
+  expect(pageGenerated()).toBe(false);
+  expect(pageTokensPerSecond()).toBeUndefined();
 });

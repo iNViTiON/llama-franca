@@ -14,7 +14,11 @@
   let setupError = $state<string>();
   let error = $derived(actionError ?? setupError ?? status?.error);
   let speed = $derived(
-    status?.tokensPerSecond ? ` · ${status.tokensPerSecond.toFixed(1)} tok/s` : "",
+    status?.tokensPerSecond
+      ? ` · ${status.tokensPerSecond.toFixed(1)} tok/s`
+      : status?.fromCache
+        ? " · cached"
+        : "",
   );
   let modelChanged = $state(false);
   let canTranslate = $derived(

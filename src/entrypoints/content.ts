@@ -8,6 +8,7 @@ import type {
   TabMode,
   TabModeMessage,
 } from "@/lib/messages";
+import { updateIndicator } from "@/lib/indicator";
 import { showPopover } from "@/lib/popover";
 import { rankByScreen, type Place } from "@/lib/queue";
 import {
@@ -25,6 +26,7 @@ import { buildNodes, collectSegments, plainText, swap, type Segment } from "@/li
 import {
   clearTranslations,
   isLoadingModel,
+  pageGenerated,
   pageTokensPerSecond,
   prefetchLines,
   requestTranslation,
@@ -71,12 +73,15 @@ interface Session {
 let session: Session | undefined;
 /** Nodes already collected or inserted as a translation, so mutation scans only pick up new content. */
 const known = new WeakSet<Node>();
+/** Fork: for the page's progress indicator. */
+let scriptContext: ContentScriptContext | undefined;
 
 export default defineContentScript({
   registration: "runtime",
   // Content script CSS (the popover's Svelte styles) goes into the popover's shadow root, not the page.
   cssInjectionMode: "ui",
   main(ctx) {
+    scriptContext = ctx;
     pendingHighlight = new Highlight();
     CSS.highlights.set("llama-franca-pending", pendingHighlight);
     const pendingSheet = new CSSStyleSheet();
@@ -223,12 +228,15 @@ function status(): PageStatus {
     pending,
     loadingModel: isLoadingModel(),
     tokensPerSecond: pageTokensPerSecond(),
+    fromCache: session.done > 0 && !pageGenerated(),
     error: session.error,
   };
 }
 
 function report() {
-  const { state, pending, target, error } = status();
+  const current = status();
+  if (scriptContext) updateIndicator(scriptContext, current);
+  const { state, pending, target, error } = current;
   let text = "";
   if (error) text = "!";
   else if (state === "translating") text = String(pending || "…");

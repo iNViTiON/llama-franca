@@ -71,5 +71,7 @@ export interface PageStatus {
   loadingModel?: boolean;
   /** Average generation speed of this page's translations so far. */
   tokensPerSecond?: number;
+  /** Fork: every block so far came from saved or in-page translations, so there is no speed to show. */
+  fromCache?: boolean;
   error?: string;
 }
