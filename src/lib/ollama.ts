@@ -76,7 +76,12 @@ export async function translate(
   purpose?: Purpose,
 ) {
   const [model, template] = await Promise.all([modelFor(purpose), promptPref.getValue()]);
-  const body = await request<{ message?: { content: string } }>(
+  const body = await request<{
+    message?: { content: string };
+    /** Ollama's own speed fields: tokens generated and nanoseconds spent generating them. */
+    eval_count?: number;
+    eval_duration?: number;
+  }>(
     "/api/chat",
     {
       method: "POST",
@@ -90,5 +95,16 @@ export async function translate(
     },
     model,
   );
-  return (body.message?.content ?? "").trim();
+  return { text: (body.message?.content ?? "").trim(), ...generationSpeed(body) };
+}
+
+/** Ollama reports tokens generated and nanoseconds spent; servers that don't (or report zero) give no speed. */
+export function generationSpeed({
+  eval_count: tokens,
+  eval_duration: nanos,
+}: {
+  eval_count?: number;
+  eval_duration?: number;
+}) {
+  return tokens && nanos ? { tokens, seconds: nanos / 1e9 } : {};
 }

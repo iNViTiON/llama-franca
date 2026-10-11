@@ -122,11 +122,7 @@ export default defineBackground(() => {
           );
         case "translate-text":
           return reply<TranslateTextResult>(
-            translate(message.source, message.target, message.text, message.purpose).then(
-              (text) => ({
-                text,
-              }),
-            ),
+            translate(message.source, message.target, message.text, message.purpose),
             sendResponse,
           );
         case "list-models":

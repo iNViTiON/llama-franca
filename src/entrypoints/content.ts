@@ -24,8 +24,11 @@ import { buildNodes, collectSegments, plainText, swap, type Segment } from "@/li
 import {
   clearTranslations,
   isLoadingModel,
+  pageTokensPerSecond,
   prefetchLines,
   requestTranslation,
+  resetPageSpeed,
+  selectionTokensPerSecond,
   watchLoadingModel,
 } from "@/lib/translator";
 
@@ -152,7 +155,8 @@ async function translateSelection(
           ? text
           : await requestTranslation(source, target, text, "selection");
 
-      if (id === latest) popover.show(translation, source.code);
+      if (id === latest)
+        popover.show(translation, source.code, selectionTokensPerSecond(source, target, text));
     } catch (error) {
       if (id === latest) popover.fail((error as Error).message);
     } finally {
@@ -217,6 +221,7 @@ function status(): PageStatus {
     done: session.done,
     pending,
     loadingModel: isLoadingModel(),
+    tokensPerSecond: pageTokensPerSecond(),
     error: session.error,
   };
 }
@@ -262,6 +267,7 @@ async function start(sourceCode: string, targetCode: string) {
     mutations: new MutationObserver((records) => onMutations(current, records)),
     scanRoots: new Set(),
   };
+  resetPageSpeed();
   session = current;
   setTabMode({ source: sourceCode, target: targetCode });
   addSegments(current, segments);

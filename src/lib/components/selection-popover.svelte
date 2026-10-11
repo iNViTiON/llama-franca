@@ -25,15 +25,19 @@
   let text = $state("Translating…");
   let status = $state<"pending" | "done" | "error">("pending");
   let detected = $state<string>();
+  let speed = $state<number>();
 
   export function pending(loadingModel = false) {
     text = loadingModel ? LOADING_MODEL : "Translating…";
     status = "pending";
+    speed = undefined;
   }
 
-  export function show(value: string, detectedCode?: string) {
+  /** `tokensPerSecond` is unset for cached translations and servers that don't report speed. */
+  export function show(value: string, detectedCode?: string, tokensPerSecond?: number) {
     text = value;
     detected = detectedCode;
+    speed = tokensPerSecond;
     status = "done";
   }
 
@@ -84,6 +88,11 @@
   >
     {text}
   </div>
+  {#if status === "done" && speed}
+    <div class="speed" title="Generation speed reported by the server">
+      {speed.toFixed(1)} tok/s
+    </div>
+  {/if}
 </div>
 
 <!-- Plain CSS, not Tailwind: Tailwind v4 utilities rely on @property, which doesn't apply inside a shadow root. -->
@@ -131,6 +140,13 @@
     scrollbar-width: thin;
     scrollbar-color: rgb(0 0 0 / 0.2) transparent;
   }
+  .speed {
+    text-align: right;
+    font-size: 11px;
+    line-height: 1.2;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+  }
   .pending {
     color: #6b7280;
   }
@@ -148,6 +164,7 @@
       scrollbar-color: rgb(255 255 255 / 0.2) transparent;
     }
     .header,
+    .speed,
     .pending {
       color: #9ca3af;
     }

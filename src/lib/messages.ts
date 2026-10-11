@@ -15,6 +15,9 @@ export interface TranslateTextMessage {
 }
 export interface TranslateTextResult {
   text: string;
+  /** Tokens generated and the seconds that took, when the server reports them (Ollama does). */
+  tokens?: number;
+  seconds?: number;
 }
 
 /** Content script → background: Ollama loads the model on first use (and after it idles out), which takes a while. */
@@ -66,5 +69,7 @@ export interface PageStatus {
   done: number;
   pending: number;
   loadingModel?: boolean;
+  /** Average generation speed of this page's translations so far. */
+  tokensPerSecond?: number;
   error?: string;
 }

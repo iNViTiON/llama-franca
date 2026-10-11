@@ -13,6 +13,9 @@
   let actionError = $state<string>();
   let setupError = $state<string>();
   let error = $derived(actionError ?? setupError ?? status?.error);
+  let speed = $derived(
+    status?.tokensPerSecond ? ` · ${status.tokensPerSecond.toFixed(1)} tok/s` : "",
+  );
   let modelChanged = $state(false);
   let canTranslate = $derived(
     modelChanged ||
@@ -139,8 +142,10 @@
   {:else if status?.loadingModel}
     <p class="text-gray-500">{LOADING_MODEL}</p>
   {:else if status?.state === "translating"}
-    <p class="text-gray-500">Translating… {status.done} done, {status.pending} queued</p>
+    <p class="text-gray-500">Translating… {status.done} done, {status.pending} queued{speed}</p>
   {:else if status?.state === "translated"}
-    <p class="text-gray-500">Translated {status.done} blocks. More translate as you scroll.</p>
+    <p class="text-gray-500">
+      Translated {status.done} blocks. More translate as you scroll.{speed}
+    </p>
   {/if}
 </main>

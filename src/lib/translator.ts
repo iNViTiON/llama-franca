@@ -26,7 +26,32 @@ export function watchLoadingModel(listener: () => void) {
 }
 
 /** Translations from another model or prompt are stale. */
-export const clearTranslations = () => translations.clear();
+export const clearTranslations = () => {
+  translations.clear();
+  selectionSpeeds.clear();
+};
+
+/** Generation speed the server reported: per selection translation, and a running total for the page. */
+const selectionSpeeds = new Map<string, number>();
+const pageSpeed = { tokens: 0, seconds: 0 };
+
+export const resetPageSpeed = () => {
+  pageSpeed.tokens = pageSpeed.seconds = 0;
+};
+export const pageTokensPerSecond = () =>
+  pageSpeed.seconds ? pageSpeed.tokens / pageSpeed.seconds : undefined;
+/** Undefined when the translation came from the cache, or the server doesn't report speed. */
+export const selectionTokensPerSecond = (source: Language, target: Language, text: string) =>
+  selectionSpeeds.get(memoKey("selection", source, target, text));
+
+function recordSpeed(purpose: Purpose, key: string, res: TranslateTextResult) {
+  if (!res.tokens || !res.seconds) return;
+  if (purpose === "selection") selectionSpeeds.set(key, res.tokens / res.seconds);
+  else {
+    pageSpeed.tokens += res.tokens;
+    pageSpeed.seconds += res.seconds;
+  }
+}
 
 async function ask<T extends object>(message: TranslateTextMessage | ModelMessage): Promise<T> {
   const res: Reply<T> = await browser.runtime.sendMessage(message);
@@ -65,6 +90,7 @@ async function sendTranslation(source: Language, target: Language, text: string,
     text,
     purpose,
   });
+  recordSpeed(purpose, memoKey(purpose, source, target, text), res);
   return res.text;
 }
 

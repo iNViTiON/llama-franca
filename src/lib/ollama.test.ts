@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { buildPrompt } from "./ollama";
+import { buildPrompt, generationSpeed } from "./ollama";
 import { DEFAULT_PROMPT } from "./prefs";
 
 test("fills placeholders once, leaving ones inside the text", () => {
@@ -15,4 +15,14 @@ Produce only the Thai translation, without any additional explanations or commen
 
 
 Hi {target} {unknown}`);
+});
+
+test("reads Ollama's speed fields, and gives none when they are missing or zero", () => {
+  expect(generationSpeed({ eval_count: 40, eval_duration: 2_000_000_000 })).toEqual({
+    tokens: 40,
+    seconds: 2,
+  });
+  expect(generationSpeed({})).toEqual({});
+  expect(generationSpeed({ eval_count: 40, eval_duration: 0 })).toEqual({});
+  expect(generationSpeed({ eval_count: 0, eval_duration: 5 })).toEqual({});
 });
