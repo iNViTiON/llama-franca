@@ -64,6 +64,8 @@ interface Session {
   observer: IntersectionObserver;
   /** False until the observer's first callback queues the visible blocks. */
   observed: boolean;
+  /** Fork: every block is queued now, nearest the screen first, instead of each when it scrolls into view. */
+  wholePage: boolean;
   mutations: MutationObserver;
   scanRoots: Set<Element>;
   scanTimer?: ReturnType<typeof setTimeout>;
@@ -94,8 +96,10 @@ export default defineContentScript({
     // SPA navigation keeps this script alive: keep translating (new content arrives as mutations) but
     // restart the count and forget the old page's blocks. Hash jumps stay on the same page.
     ctx.addEventListener(window, "wxt:locationchange", ({ newUrl, oldUrl }) => {
-      if (session && newUrl.href.split("#")[0] !== oldUrl.href.split("#")[0])
+      if (session && newUrl.href.split("#")[0] !== oldUrl.href.split("#")[0]) {
         forgetDetached(session);
+        setWholePage(session, false); // fork: a new page starts with whole-page off
+      }
     });
     browser.runtime.onMessage.addListener((message: PageMessage, _sender, sendResponse) => {
       if (message?.type === "translate-page") {
@@ -120,7 +124,8 @@ export default defineContentScript({
       .sendMessage({ type: "get-tab-mode" } satisfies TabModeMessage)
       .then((mode: TabMode | null) => {
         // Errors like "page is already in the target language" just leave this page as is.
-        if (mode && !session) start(mode.source, mode.target).catch(() => {});
+        if (mode && !session)
+          start(mode.source, mode.target, mode.wholePageUrl === pageUrl()).catch(() => {});
       });
   },
 });
@@ -229,13 +234,14 @@ function status(): PageStatus {
     loadingModel: isLoadingModel(),
     tokensPerSecond: pageTokensPerSecond(),
     fromCache: session.done > 0 && !pageGenerated(),
+    wholePage: session.wholePage,
     error: session.error,
   };
 }
 
 function report() {
   const current = status();
-  if (scriptContext) updateIndicator(scriptContext, current);
+  if (scriptContext) updateIndicator(scriptContext, current, toggleWholePage);
   const { state, pending, target, error } = current;
   let text = "";
   if (error) text = "!";
@@ -245,7 +251,7 @@ function report() {
   browser.runtime.sendMessage(message).catch(() => {});
 }
 
-async function start(sourceCode: string, targetCode: string) {
+async function start(sourceCode: string, targetCode: string, wholePage = false) {
   restore();
   const target = await findTarget(targetCode);
 
@@ -272,30 +278,76 @@ async function start(sourceCode: string, targetCode: string) {
     observer: new IntersectionObserver((entries) => onVisible(current, entries), {
       rootMargin: "300px 0px",
     }),
-    observed: false,
+    // Whole page: nothing waits for the observer, so there is no first callback to wait for.
+    observed: wholePage,
+    wholePage,
     mutations: new MutationObserver((records) => onMutations(current, records)),
     scanRoots: new Set(),
   };
   resetPageSpeed();
   session = current;
-  setTabMode({ source: sourceCode, target: targetCode });
+  setTabMode({
+    source: sourceCode,
+    target: targetCode,
+    wholePageUrl: wholePage ? pageUrl() : undefined,
+  });
   addSegments(current, segments);
   current.mutations.observe(document.body, { childList: true, subtree: true });
   report();
+}
+
+/** Hold the block until its parent scrolls into view; `onVisible` queues it then. */
+function watch(s: Session, segment: Segment) {
+  const waiting = s.byParent.get(segment.parent);
+  if (waiting) {
+    waiting.push(segment);
+  } else {
+    s.byParent.set(segment.parent, [segment]);
+    s.observer.observe(segment.parent);
+  }
 }
 
 function addSegments(s: Session, segments: Segment[]) {
   for (const segment of segments) {
     segment.original.forEach((node) => known.add(node));
     s.segments.push(segment);
-    const waiting = s.byParent.get(segment.parent);
-    if (waiting) {
-      waiting.push(segment);
-    } else {
-      s.byParent.set(segment.parent, [segment]);
-      s.observer.observe(segment.parent);
-    }
+    if (s.wholePage) s.queue.push(segment);
+    else watch(s, segment);
   }
+  if (s.wholePage && segments.length) pump(s);
+}
+
+/**
+ * Fork: on, every block that waited to scroll into view is queued now (`pump` takes the ones nearest the screen
+ * first), and later content is queued as it arrives. Off, queued blocks go back to waiting for the screen; the
+ * ones on it come straight back through the observer. Requests already sent keep running either way.
+ */
+function setWholePage(s: Session, on: boolean) {
+  if (session !== s || s.wholePage === on) return;
+  s.wholePage = on;
+  if (on) {
+    for (const [parent, waiting] of s.byParent) {
+      s.observer.unobserve(parent);
+      s.queue.push(...waiting);
+    }
+    s.byParent.clear();
+    s.observed = true;
+  } else {
+    for (const segment of s.queue.splice(0)) watch(s, segment);
+  }
+  setTabMode({
+    source: s.requestedSource,
+    target: s.target.code,
+    wholePageUrl: on ? pageUrl() : undefined,
+  });
+  pump(s);
+}
+
+/** Hash jumps stay on the same page. */
+const pageUrl = () => location.href.split("#")[0]!;
+
+function toggleWholePage() {
+  if (session) setWholePage(session, !session.wholePage);
 }
 
 function onVisible(s: Session, entries: IntersectionObserverEntry[]) {

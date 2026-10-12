@@ -47,6 +47,11 @@ export interface BadgeMessage {
 export interface TabMode {
   source: string;
   target: string;
+  /**
+   * Fork: the page (URL without its #hash) whole-page translation was switched on for. A reload resumes it; any other
+   * page in the tab starts with it off.
+   */
+  wholePageUrl?: string;
 }
 
 /** Content script → background */
@@ -73,5 +78,7 @@ export interface PageStatus {
   tokensPerSecond?: number;
   /** Fork: every block so far came from saved or in-page translations, so there is no speed to show. */
   fromCache?: boolean;
+  /** Fork: every block is queued now, instead of each one when it scrolls into view. */
+  wholePage?: boolean;
   error?: string;
 }

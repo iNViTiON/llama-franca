@@ -149,7 +149,9 @@
     <p class="text-gray-500">Translating… {status.done} done, {status.pending} queued{speed}</p>
   {:else if status?.state === "translated"}
     <p class="text-gray-500">
-      Translated {status.done} blocks. More translate as you scroll.{speed}
+      Translated {status.done} blocks.{status.wholePage
+        ? ""
+        : " More translate as you scroll."}{speed}
     </p>
   {/if}
 </main>
