@@ -11,6 +11,7 @@ Translate web pages in your browser with a local LLM on Ollama. Just like lingua
 
 **Contents**
 
+- [This fork](#this-fork)
 - [Features](#features)
 - [Usage](#usage)
   - [Set up Ollama](#set-up-ollama)
@@ -24,6 +25,32 @@ Translate web pages in your browser with a local LLM on Ollama. Just like lingua
   - [Check, lint, and test](#check-lint-and-test)
 
 <!-- END doctoc -->
+
+## This fork
+
+This is the `npu` branch of a fork of [Th1nkK1D/llama-franca](https://github.com/Th1nkK1D/llama-franca). It adds the
+following on top of upstream, mainly for [Local LLM NPU Translator](https://github.com/iNViTiON/local-llm-npu-translator),
+which serves TranslateGemma on an Intel NPU behind the same Ollama API (it also works with plain Ollama):
+
+- **Model and device picker** in the popup and the selection box. A server that runs the model on several devices lists
+  names like `translategemma:4b@NPU` or `@GPU`; the picker shows the model and the device separately, and the plain
+  name means the server's default device. Selections can use their own model, for example short selections on the NPU
+  while pages use the GPU. Turn it on in _Settings_.
+- **Fallback source language**: the language to assume when _Auto_ can't detect one (short or mixed pages). Left empty, it asks
+  instead.
+- **Keyboard shortcuts**: <kbd>Alt+Shift+T</kbd> translates the page or shows the original, <kbd>Alt+Shift+S</kbd>
+  translates the selection, <kbd>Alt+Shift+L</kbd> opens the popup. Change them on the browser's extension shortcuts page.
+- **Generation speed** (tokens per second) in the selection box and the popup; saved translations show "cached".
+- **What's on screen first**: after scrolling during a translation, the blocks now on screen go before the ones
+  queued earlier (main content first, then the rest, top to bottom).
+- **Page corner chip**: blocks left and speed while a page translates, and a **Whole page** switch that queues every
+  block at once (nearest the screen first, and content that loads later too), so a page can translate in the
+  background. The switch applies to the page it was turned on for and survives a reload.
+
+<p>
+  <img src="docs/fork-popup.png" alt="Popup with the model and device picker: translategemma:4b on the NPU" width="332">
+  <img src="docs/fork-page-chip.png" alt="Page corner chip: Translating, 82 left, 20.7 tok/s, Whole page switch" width="342">
+</p>
 
 ## Features
 
