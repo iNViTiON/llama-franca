@@ -109,6 +109,12 @@ export default defineContentScript({
         );
         return true;
       }
+      if (message?.type === "translate-whole-page") {
+        // Fork: on a page being translated this flips the whole-page switch, otherwise it starts with it on.
+        if (session) toggleWholePage();
+        else start(message.source, message.target, true).catch(() => {});
+        sendResponse(status());
+      }
       if (message?.type === "translate-selection") {
         void translateSelection(ctx, message.text, message.source, message.target);
       }

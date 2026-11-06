@@ -1,4 +1,5 @@
 import type { Language } from "./languages";
+import { splitModel } from "./models";
 import { cacheLimitPref, modelFor, promptPref, type Purpose } from "./prefs";
 
 const PREFIX = "tr:";
@@ -15,7 +16,9 @@ export const cacheKey = (source: Language, target: Language, text: string) =>
   `${source.code}>${target.code}\n${text}`;
 
 async function storageKey(source: Language, target: Language, text: string, purpose?: Purpose) {
-  const [model, prompt] = await Promise.all([modelFor(purpose), promptPref.getValue()]);
+  const [chosen, prompt] = await Promise.all([modelFor(purpose), promptPref.getValue()]);
+  // Fork: the device is left out, so switching between `model@NPU` and `model@GPU` keeps the saved translations.
+  const { model } = splitModel(chosen);
   const data = new TextEncoder().encode(`${model}\n${prompt}\n${cacheKey(source, target, text)}`);
   // In a Firefox content script the hash belongs to the page, so methods like `slice` that read `constructor` are denied.
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));

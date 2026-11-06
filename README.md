@@ -38,7 +38,8 @@ which serves TranslateGemma on an Intel NPU behind the same Ollama API (it also 
   while pages use the GPU. Turn it on in _Settings_.
 - **Fallback source language**: the language to assume when _Auto_ can't detect one (short or mixed pages). Left empty, it asks
   instead.
-- **Keyboard shortcuts**: <kbd>Alt+Shift+T</kbd> translates the page or shows the original, <kbd>Alt+Shift+S</kbd>
+- **Keyboard shortcuts**: <kbd>Alt+Shift+T</kbd> translates the page or shows the original, <kbd>Alt+Shift+W</kbd>
+  translates the whole page at once (again to go back to on-screen only), <kbd>Alt+Shift+S</kbd>
   translates the selection, <kbd>Alt+Shift+L</kbd> opens the popup. Change them on the browser's extension shortcuts page.
 - **Generation speed** (tokens per second) in the selection box and the popup; saved translations show "cached".
 - **What's on screen first**: after scrolling during a translation, the blocks now on screen go before the ones

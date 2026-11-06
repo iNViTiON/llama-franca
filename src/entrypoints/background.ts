@@ -45,9 +45,9 @@ async function syncMenu() {
   ]).catch(() => {});
 }
 
-type Action = "translate-page" | "translate-selection";
+type Action = "translate-page" | "translate-whole-page" | "translate-selection";
 
-/** Context menu items and keyboard shortcuts share the same two actions. Translating a translated page restores it. */
+/** Context menu items and keyboard shortcuts share these actions (the whole-page one is shortcut only). Translating a translated page restores it. */
 async function invoke(action: Action, tab: Browser.tabs.Tab | undefined, selectionText = "") {
   if (tab?.id === undefined) return;
   const tabId = tab.id;
@@ -62,9 +62,9 @@ async function invoke(action: Action, tab: Browser.tabs.Tab | undefined, selecti
   const [source, target] = await Promise.all([sourcePref.getValue(), getTarget()]);
   // The content script reads the page's own selection when a shortcut gives no text.
   const message: PageMessage =
-    action === "translate-page"
-      ? { type: "translate-page", source, target }
-      : { type: "translate-selection", text: selectionText, source, target };
+    action === "translate-selection"
+      ? { type: "translate-selection", text: selectionText, source, target }
+      : { type: action, source, target };
   // Fails on pages extensions can't script, like browser pages.
   ensureContentScript(tabId)
     .then(() => browser.tabs.sendMessage(tabId, message))
@@ -152,7 +152,12 @@ export default defineBackground(() => {
   );
   // Fork: keyboard shortcuts (set in the browser's extension shortcut settings, defaults in wxt.config.ts).
   browser.commands.onCommand.addListener(async (command, tab) => {
-    if (command !== "translate-page" && command !== "translate-selection") return;
+    if (
+      command !== "translate-page" &&
+      command !== "translate-whole-page" &&
+      command !== "translate-selection"
+    )
+      return;
     tab ??= (await browser.tabs.query({ active: true, lastFocusedWindow: true }))[0];
     await invoke(command, tab);
   });

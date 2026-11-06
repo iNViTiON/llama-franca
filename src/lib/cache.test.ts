@@ -1,7 +1,8 @@
 import { expect, test, vi } from "vitest";
 import { fakeBrowser } from "wxt/testing/fake-browser";
-import { evict, oldestHalf } from "./cache";
-import { cacheLimitPref } from "./prefs";
+import { evict, getStored, oldestHalf, putStored } from "./cache";
+import type { Language } from "./languages";
+import { cacheLimitPref, modelPref } from "./prefs";
 
 test("evicts the older half of translations only", () => {
   const items = {
@@ -39,4 +40,16 @@ test("evicts until translations fit the limit, all of them at 0", async () => {
   await cacheLimitPref.setValue(0);
   await evict();
   expect(Object.keys(await local.get(null)).sort()).toEqual(["cacheLimit", "target"]);
+});
+
+test("keeps saved translations when only the device changes", async () => {
+  fakeBrowser.reset();
+  const en = { code: "en", name: "English" } as Language;
+  const th = { code: "th", name: "Thai" } as Language;
+  await modelPref.setValue("eurollm-1.7b-it@NPU");
+  await putStored(en, th, "hello", "สวัสดี");
+  await modelPref.setValue("eurollm-1.7b-it@GPU");
+  expect(await getStored(en, th, "hello")).toBe("สวัสดี");
+  await modelPref.setValue("other-model");
+  expect(await getStored(en, th, "hello")).toBeUndefined();
 });
